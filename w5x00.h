@@ -29,8 +29,10 @@
 
 #include "regs.h"
 
-#define W5X00_NREST		15			// CS1
-#define W5X00_NINT		17			// CS2
+#define W5X00_DEFAULT_PIN_RESET      15
+#define W5X00_DEFAULT_PIN_INTERRUPT  17
+#define W5X00_DEFAULT_SELECT         0
+#define W5X00_DEFAULT_MAC            {0x00, 0x08, 0xDC, 0x91, 0x97, 0x98}
 
 #define SPI_BURST_SIZE	28			// Read/Write Burst Size (For spi_write_then_read)
 
@@ -38,6 +40,8 @@
 typedef struct _wiz_t {
 	u32 base;
 	int irq;
+	int pin_interrupt;
+	int pin_reset;
 	int sock[MAX_SOCK_NUM];
 	int nof_socks;
 	u8  macaddr[8];

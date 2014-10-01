@@ -13,21 +13,49 @@
 
 static wiz_t gDrvInfo;
 
-static unsigned char defmac[] = { 0x00, 0x08, 0xDC, 0x91, 0x97, 0x98 };
+static int param_mac_size = 6;
 
 struct spi_device *spi_device = NULL;
 
+static int param_pin_interrupt = W5X00_DEFAULT_PIN_INTERRUPT;
+static int param_pin_reset = W5X00_DEFAULT_PIN_RESET;
+static int param_select = W5X00_DEFAULT_SELECT;
+static unsigned char param_mac[6] = W5X00_DEFAULT_MAC;
+
+module_param(param_pin_interrupt, int, 0);
+MODULE_PARM_DESC(param_pin_interrupt, "Interrupt pin number");
+
+module_param(param_pin_reset, int, 0);
+MODULE_PARM_DESC(param_pin_reset, "Reset pin number");
+
+module_param(param_select, int, 0);
+MODULE_PARM_DESC(param_select, "SPI select number");
+
+module_param_array(param_mac, byte, &param_mac_size, 0);
+MODULE_PARM_DESC(param_mac, "MAC Address");
+
 static int w5x00_probe(struct spi_device *spi)
 {
-	printk("w5x00 probe\n");
+	printk("w5x00 probe [int %d, rst %d, sel %d, mac %x:%x:%x:%x:%x:%x]\n",
+	       param_pin_interrupt,
+		   param_pin_reset,
+		   param_select,
+		   param_mac[0], param_mac[1], param_mac[2], 
+		   param_mac[3], param_mac[4], param_mac[5]);
+
+	printk("chip select before: %d\n", spi->chip_select);
+
+	spi->chip_select = param_select;
 	spi_device = spi;
 
 	/* Initial field */
 	gDrvInfo.base = 0;
-	gDrvInfo.irq  = gpio_to_irq(W5X00_NINT);
+	gDrvInfo.pin_interrupt = param_pin_interrupt;
+	gDrvInfo.pin_reset = param_pin_reset;
+	gDrvInfo.irq = gpio_to_irq(param_pin_interrupt);
 
 	/* mac address */
-	memcpy(gDrvInfo.macaddr, defmac, 6);
+	memcpy(gDrvInfo.macaddr, param_mac, 6);
 	
 	/* initialize device */
 	if (wiz_dev_init(&gDrvInfo) < 0) {

@@ -94,8 +94,10 @@ struct net_local {
 	 */
 	spinlock_t		lock;
 
-	/* W5X00 IRQ no. */
-	unsigned int    irq;
+	/* W5X00 IRQ no. and pins */
+	int             irq;
+	int             pin_interrupt;
+	int             pin_reset;
 
 	/* functions and structures specific to W5500 or W5200 respectively */
 	void (*w5x00_write)(u32, u8);
@@ -1456,11 +1458,13 @@ static u8 iinchip_macaddr[6];
  */
 void iinchip_hwreset(void)
 {
-	gpio_request(W5X00_NREST, "w5x00_reset");
-	gpio_direction_output(W5X00_NREST, 1);
-	gpio_set_value(W5X00_NREST, 0);
+	struct net_local *lp = &iinchip_local_p;
+
+	gpio_request(lp->pin_reset, "w5x00_reset");
+	gpio_direction_output(lp->pin_reset, 1);
+	gpio_set_value(lp->pin_reset, 0);
 	mdelay(1);
-	gpio_set_value(W5X00_NREST, 1);
+	gpio_set_value(lp->pin_reset, 1);
 	mdelay(2);
 	mdelay(1500);				// WIZ550IO 사용시 필요
 }
@@ -1504,7 +1508,7 @@ int wiz_dev_init(wiz_t *wz)
 
 	spin_lock_init(&spi_lock);
 
-	memset(&iinchip_local_p, 0, sizeof(iinchip_local_p));
+	memset(lp, 0, sizeof(iinchip_local_p));
 
 	w5x00_wq = create_workqueue("w5x00_workqueue");
 	INIT_WORK(&(wz->rx_work), w5x00_rx_irq_work);
@@ -1514,7 +1518,9 @@ int wiz_dev_init(wiz_t *wz)
 	
 	/* initialize parameter */
 	memcpy(iinchip_macaddr, wz->macaddr, 6);
-	iinchip_local_p.irq = wz->irq;
+	lp->irq           = wz->irq;
+	lp->pin_interrupt = wz->pin_interrupt;
+	lp->pin_reset     = wz->pin_reset;
 	
 	/* Initialize channel */
 	local_port = LOCAL_PORT;
@@ -1545,12 +1551,12 @@ int wiz_dev_init(wiz_t *wz)
 	iinchip_reset();
 
 	/* Initialize Interrupt GPIO */
-	if(gpio_request(W5X00_NINT, "w5x00")) {
+	if(gpio_request(lp->pin_interrupt, "w5x00")) {
 		printk("[%s] gpio_request w5x00 irq error\n", __func__);
 		return -EAGAIN;
 	}
-	gpio_export(W5X00_NINT, 1);
-	gpio_direction_input(W5X00_NINT);
+	gpio_export(lp->pin_interrupt, 1);
+	gpio_direction_input(lp->pin_interrupt);
 
 	/* allocate the irq corresponding to the receiving */
 	if (request_irq(wz->irq, iinchip_interrupt, (IRQF_SHARED | IRQF_DISABLED | IRQF_TRIGGER_LOW), "w5x00", (void *) wz)) {
@@ -1563,12 +1569,13 @@ int wiz_dev_init(wiz_t *wz)
 
 int wiz_dev_exit(wiz_t *wz)
 {
+	struct net_local *lp = &iinchip_local_p;
 	destroy_workqueue(w5x00_wq);
 	free_irq(wz->irq, (void *) wz);
 
 	printk("gpio_free\n");
-	gpio_free(W5X00_NINT);
-	gpio_free(W5X00_NREST);
+	gpio_free(lp->pin_interrupt);
+	gpio_free(lp->pin_reset);
 
 	return 0;
 }
